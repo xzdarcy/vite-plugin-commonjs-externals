@@ -11,7 +11,7 @@ import { defineConfig } from 'vite';
 import {
   commonjsExternals,
   esbuildCommonjsExternals,
-} from 'vite-plugin-commonjs-externals';
+} from '@xzdarcy/vite-plugin-commonjs-externals';
 
 const commonjsPackages = [
   'electron',
