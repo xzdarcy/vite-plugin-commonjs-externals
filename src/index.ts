@@ -1,12 +1,15 @@
 import * as acorn from 'acorn';
 import * as esModuleLexer from 'es-module-lexer';
+import { Loader, Plugin as EsbuildPlugin } from 'esbuild';
 import type {
   ImportDefaultSpecifier,
   ImportNamespaceSpecifier,
   ImportSpecifier,
   Program,
 } from 'estree';
+import * as fs from 'fs';
 import MagicString from 'magic-string';
+import * as path from 'path';
 import type { Plugin } from 'vite';
 
 export interface CommonjsExternalsPluginOptions {
@@ -125,7 +128,7 @@ function transformEsm(
   };
 }
 
-const commonjsExternalsPlugin = ({
+export const commonjsExternals = ({
   externals,
   exts = ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'],
 }: CommonjsExternalsPluginOptions): Plugin => ({
@@ -141,4 +144,38 @@ const commonjsExternalsPlugin = ({
   },
 });
 
-export default commonjsExternalsPlugin;
+export const esbuildCommonjsExternals = (
+  options: CommonjsExternalsPluginOptions
+): EsbuildPlugin => {
+  const {
+    externals,
+    exts = ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'],
+  } = options;
+  return {
+    name: 'commonjs-externals',
+    setup(build) {
+      build.onLoad(
+        {
+          filter: new RegExp(`\\.(${exts.join('|')})$`),
+          namespace: 'file',
+        },
+        async ({ path: filePath }) => {
+          try {
+            const code = fs.readFileSync(filePath).toString();
+            await esModuleLexer.init;
+            const [imports] = esModuleLexer.parse(code);
+
+            const rCode = transformEsm(imports, code, externals);
+            const ext = path.extname(filePath).slice(1);
+            return {
+              contents: rCode?.code,
+              loader: (ext.match(/j|tsx?$/) ? ext : 'js') as Loader,
+            };
+          } catch {
+            return null;
+          }
+        }
+      );
+    },
+  };
+};
